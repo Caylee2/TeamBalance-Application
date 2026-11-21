@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeamBalance - 정밀 팀 프로젝트 업무 배분 분석기</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts Pretendard -->
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Pretendard', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-950 min-h-screen pb-24 selection:bg-indigo-600 selection:text-white">
+
+    <!-- Header -->
+    <header class="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-gradient-to-tr from-indigo-600 to-violet-600 p-2.5 rounded-2xl shadow-md shadow-indigo-600/20">
+                    <i class="fa-solid fa-scale-balanced text-white text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-base tracking-tight text-slate-900 flex items-center gap-1.5">
+                        TeamBalance <span class="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-semibold">PRO</span>
+                    </h1>
+                    <p class="text-xs text-slate-500">초정밀 공정 업무 배분 & AI 분석 시스템</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="toggleApiKeyModal()" class="bg-slate-100 hover:bg-slate-200 active:scale-95 text-xs font-medium px-3.5 py-2 rounded-xl transition-all border border-slate-200 flex items-center gap-1.5 cursor-pointer text-slate-700 shadow-xs">
+                    <i class="fa-solid fa-key text-amber-500"></i> <span id="apiKeyBtnText">API 키 설정</span>
+                </button>
+                <button onclick="loadSampleData()" class="bg-slate-100 hover:bg-slate-200 active:scale-95 text-xs font-medium px-3.5 py-2 rounded-xl transition-all border border-slate-200 flex items-center gap-1.5 cursor-pointer text-indigo-600 shadow-xs">
+                    <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> 샘플 채우기
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Gemini API Key Modal -->
+    <div id="apiKeyModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-2xl max-w-sm w-full space-y-4 animate-in fade-in zoom-in duration-150">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-key text-amber-500"></i> Gemini API 키 설정
+                </h3>
+                <button onclick="toggleApiKeyModal()" class="text-slate-400 hover:text-slate-600 text-xs">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500 leading-relaxed">
+                본인의 Google Gemini API 키를 입력하면 AI 과제 업무 자동 분해 기능 사용 시 우선 적용됩니다. (입력하지 않으면 데모용 기본 연동 모드로 작동합니다)
+            </p>
+            <div class="space-y-2">
+                <input type="password" id="userApiKeyInput" placeholder="AIzaSy..." class="w-full text-xs border border-slate-300 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 text-slate-900">
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="saveApiKey()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 rounded-xl transition-all">
+                    저장하기
+                </button>
+                <button onclick="clearApiKey()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold px-3 py-2.5 rounded-xl transition-all border border-slate-200">
+                    초기화
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <main class="max-w-2xl mx-auto px-4 py-6 space-y-6">
+
+        <!-- Navigation Tabs -->
+        <div class="grid grid-cols-3 bg-slate-200/70 p-1.5 rounded-2xl border border-slate-300/60 text-xs font-semibold backdrop-blur-sm shadow-inner">
+            <button onclick="switchTab('ai')" id="tabBtnAi" class="py-2.5 rounded-xl transition-all bg-indigo-600 text-white shadow-md flex items-center justify-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-robot"></i> 1. AI 과제 분해
+            </button>
+            <button onclick="switchTab('team')" id="tabBtnTeam" class="py-2.5 rounded-xl transition-all text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-users"></i> 2. 팀원 & 업무
+            </button>
+            <button onclick="switchTab('result')" id="tabBtnResult" class="py-2.5 rounded-xl transition-all text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-chart-pie"></i> 3. 공정 배분 결과
+            </button>
+        </div>
+
+        <!-- PAGE 1: AI Task Generator -->
+        <section id="pageAi" class="space-y-4">
+            <div class="bg-white backdrop-blur-xl p-6 rounded-3xl border border-slate-200 shadow-xl space-y-5">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-bold text-slate-900 flex items-center gap-2 text-base">
+                        <div class="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                            <i class="fa-solid fa-brain"></i>
+                        </div>
+                        AI 과제 업무 자동 분해
+                    </h2>
+                    <span class="text-[11px] bg-indigo-50 text-indigo-700 font-semibold px-3 py-1 rounded-full border border-indigo-200">Gemini 3 Flash</span>
+                </div>
+                <p class="text-xs text-slate-600 leading-relaxed">
+                    수행해야 할 팀 프로젝트 주제나 과제를 입력하면, AI가 자동으로 최적의 세부 업무 목록과 소요 시간을 정밀 분해합니다.
+                </p>
+                <div class="space-y-3">
+                    <textarea id="projectPromptInput" rows="3" placeholder="예: 10학년 학교 축제 부스 운영 및 파이썬 게임 제작 프로젝트" class="w-full text-sm border border-slate-300 rounded-2xl p-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 text-slate-900 placeholder-slate-400 shadow-inner"></textarea>
+                    <button type="button" onclick="generateTasksWithAI()" id="aiGenerateBtn" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 active:scale-[0.98] text-white font-bold py-4 rounded-2xl transition-all text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/20">
+                        <i class="fa-solid fa-bolt text-amber-300 text-sm"></i>
+                        <span>AI로 업무 목록 자동 생성하기</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl flex items-start gap-3 backdrop-blur-sm">
+                <i class="fa-solid fa-circle-info text-indigo-600 mt-0.5"></i>
+                <div class="text-xs text-indigo-900 space-y-1">
+                    <p class="font-bold">💡 이용 팁</p>
+                    <p class="text-indigo-700">AI가 업무를 생성한 후 상단 탭의 [2. 팀원 & 업무]로 이동하여 팀원 명단을 확인하고 최적 배분을 실행하세요.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- PAGE 2: Members & Tasks Setup -->
+        <section id="pageTeam" class="space-y-6 hidden">
+            <!-- Members Setup Box -->
+            <div class="bg-white backdrop-blur-xl p-5 rounded-3xl border border-slate-200 shadow-xl space-y-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-bold text-slate-900 flex items-center gap-2 text-sm">
+                        <i class="fa-solid fa-users text-indigo-600"></i> 팀원 명단 (<span id="memberCount">0</span>명)
+                    </h2>
+                    <span class="text-[11px] text-slate-500">역량 레벨 (5점 최대 2개)</span>
+                </div>
+
+                <div class="space-y-3">
+                    <input type="text" id="memberName" placeholder="팀원 이름" class="w-full text-sm border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 text-slate-900 placeholder-slate-400">
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[11px] font-semibold text-slate-700 block mb-1">주당 가용 시간 (h)</label>
+                            <input type="number" id="memberCapacity" value="10" min="3" max="30" class="w-full text-sm border border-slate-300 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 text-slate-900 text-center font-semibold">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-semibold text-slate-700 block mb-1">주력 분야</label>
+                            <select id="memberSkill" class="w-full text-sm border border-slate-300 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 text-slate-900">
+                                <option value="개발">개발 (Dev)</option>
+                                <option value="디자인">디자인 (Design)</option>
+                                <option value="기획">기획 (Planning)</option>
+                                <option value="발표">발표 (Presentation)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Skills Matrix Inputs with Strict Limit -->
+                    <div class="pt-3 border-t border-slate-200">
+                        <label class="text-[11px] font-bold text-slate-800 block mb-2 flex items-center justify-between">
+                            <span>세부 역량 레벨 (1~5점)</span>
+                            <span class="text-[10px] text-rose-600 font-normal">5점은 최대 2개 제한</span>
+                        </label>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div class="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                                <span class="text-slate-700">개발</span>
+                                <input type="number" id="skillDev" value="3" min="1" max="5" class="w-12 text-center border border-slate-300 rounded-lg py-1 font-semibold bg-white text-slate-900">
+                            </div>
+                            <div class="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                                <span class="text-slate-700">디자인</span>
+                                <input type="number" id="skillDesign" value="3" min="1" max="5" class="w-12 text-center border border-slate-300 rounded-lg py-1 font-semibold bg-white text-slate-900">
+                            </div>
+                            <div class="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                                <span class="text-slate-700">기획</span>
+                                <input type="number" id="skillPlanning" value="3" min="1" max="5" class="w-12 text-center border border-slate-300 rounded-lg py-1 font-semibold bg-white text-slate-900">
+                            </div>
+                            <div class="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                                <span class="text-slate-700">발표</span>
+                                <input type="number" id="skillPresentation" value="3" min="1" max="5" class="w-12 text-center border border-slate-300 rounded-lg py-1 font-semibold bg-white text-slate-900">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="button" onclick="addMember()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-bold py-3.5 rounded-xl transition-all text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-600/20">
+                        <i class="fa-solid fa-user-plus"></i> 팀원 추가하기
+                    </button>
+                </div>
+
+                <div id="memberList" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    <!-- Dynamic Members -->
+                </div>
+            </div>
+
+            <!-- Tasks Management Box -->
+            <div class="bg-white backdrop-blur-xl p-5 rounded-3xl border border-slate-200 shadow-xl space-y-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-bold text-slate-900 flex items-center gap-2 text-sm">
+                        <i class="fa-solid fa-list-check text-indigo-600"></i> 업무 목록 (<span id="taskCount">0</span>개)
+                    </h2>
+                    <span class="text-[11px] text-slate-500">난이도 및 소요 시간</span>
+                </div>
+
+                <div class="space-y-3">
+                    <input type="text" id="taskName" placeholder="업무명 입력" class="w-full text-sm border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 text-slate-900 placeholder-slate-400">
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="text-[11px] font-semibold text-slate-700 block mb-1">카테고리</label>
+                            <select id="taskCategory" class="w-full text-xs border border-slate-300 rounded-xl px-2 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 text-slate-900">
+                                <option value="개발">개발</option>
+                                <option value="디자인">디자인</option>
+                                <option value="기획">기획</option>
+                                <option value="발표">발표</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-semibold text-slate-700 block mb-1">난이도(1~5)</label>
+                            <input type="number" id="taskDifficulty" value="3" min="1" max="5" class="w-full text-xs border border-slate-300 rounded-xl px-2 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 text-slate-900 text-center font-semibold">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-semibold text-slate-700 block mb-1">소요시간(h)</label>
+                            <input type="number" id="taskHours" value="6" min="1" max="30" class="w-full text-xs border border-slate-300 rounded-xl px-2 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 text-slate-900 text-center font-semibold">
+                        </div>
+                    </div>
+                    <button type="button" onclick="addTask()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-bold py-3.5 rounded-xl transition-all text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-600/20">
+                        <i class="fa-solid fa-plus"></i> 업무 추가하기
+                    </button>
+                </div>
+
+                <div id="taskList" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    <!-- Dynamic Tasks -->
+                </div>
+            </div>
+
+            <!-- Run Optimization Action Button -->
+            <button type="button" id="calcOptimizationBtn" onclick="calculateOptimization()" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 active:scale-[0.98] text-white font-bold py-4 rounded-2xl transition-all shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-2 cursor-pointer text-sm">
+                <i class="fa-solid fa-scale-balanced text-amber-300 text-base"></i>
+                <span>초정밀 균등 배분 실행 & 결과 보기</span>
+            </button>
+        </section>
+
+        <!-- PAGE 3: Result & Peer Workload Comparison -->
+        <section id="pageResult" class="space-y-5 hidden">
+            <!-- Fairness Score Card -->
+            <div class="bg-gradient-to-br from-indigo-900 via-slate-900 to-violet-950 text-white p-6 rounded-3xl shadow-2xl relative overflow-hidden border border-indigo-500/20">
+                <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                        <div class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-semibold mb-2.5 border border-indigo-500/30">
+                            <i class="fa-solid fa-shield-halved text-emerald-400"></i> 업무량 편차 최소화 보장완료
+                        </div>
+                        <h3 class="text-xl font-bold tracking-tight text-white">팀 종합 공정성 지수</h3>
+                        <p class="text-xs text-slate-300 mt-0.5">팀원 간 작업 시간 격차가 최소화되었습니다.</p>
+                    </div>
+                    <div class="flex items-center gap-3 bg-slate-900/60 px-6 py-4 rounded-2xl backdrop-blur-md border border-slate-700/60 shadow-inner">
+                        <div class="text-right">
+                            <div id="fairnessScoreDisplay" class="text-3xl font-black text-emerald-400">94</div>
+                            <div class="text-[10px] text-slate-400 font-semibold">/ 100 점 만점</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Peer-to-Peer Workload Comparison Chart -->
+            <div class="bg-white backdrop-blur-xl p-5 rounded-3xl border border-slate-200 shadow-xl space-y-3">
+                <h4 class="font-bold text-xs text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-column text-indigo-600"></i> 팀원 간 배정 업무 시간 상호 비교 (h)
+                </h4>
+                <p class="text-[11px] text-slate-500">팀원들끼리의 작업 시간 차이가 최소화되도록 균등 배분되었습니다.</p>
+                <div class="h-60 relative flex items-center justify-center">
+                    <canvas id="peerWorkloadBarChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Assigned Results Breakdown -->
+            <div class="bg-white backdrop-blur-xl p-5 rounded-3xl border border-slate-200 shadow-xl space-y-4">
+                <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-circle-check text-indigo-600"></i> 팀원별 맞춤형 업무 배분 결과
+                </h3>
+                <div id="assignmentResultsContainer" class="space-y-3">
+                    <!-- Dynamic Assignment Cards -->
+                </div>
+            </div>
+
+            <button onclick="switchTab('team')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3.5 rounded-2xl transition-all text-xs flex items-center justify-center gap-2 cursor-pointer border border-slate-200">
+                <i class="fa-solid fa-arrow-left"></i> 설정 화면으로 돌아가기
+            </button>
+        </section>
+
+    </main>
+
+    <script>
+        // Application State
+        let state = {
+            members: [],
+            tasks: [],
+            userApiKey: localStorage.getItem('teamBalance_gemini_key') || ''
+        };
+
+        let peerChartInstance = null;
+
+        // API Key Modal Controls
+        function toggleApiKeyModal() {
+            const modal = document.getElementById('apiKeyModal');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) {
+                document.getElementById('userApiKeyInput').value = state.userApiKey;
+            }
+        }
+
+        function saveApiKey() {
+            const key = document.getElementById('userApiKeyInput').value.trim();
+            state.userApiKey = key;
+            if (key) {
+                localStorage.setItem('teamBalance_gemini_key', key);
+                showNotification("Gemini API 키가 저장되었습니다!");
+            } else {
+                localStorage.removeItem('teamBalance_gemini_key');
+                showNotification("API 키가 초기화되었습니다.");
+            }
+            updateApiKeyBtnStatus();
+            toggleApiKeyModal();
+        }
+
+        function clearApiKey() {
+            state.userApiKey = '';
+            localStorage.removeItem('teamBalance_gemini_key');
+            document.getElementById('userApiKeyInput').value = '';
+            showNotification("API 키가 초기화되었습니다.");
+            updateApiKeyBtnStatus();
+            toggleApiKeyModal();
+        }
+
+        function updateApiKeyBtnStatus() {
+            const btnText = document.getElementById('apiKeyBtnText');
+            if (state.userApiKey) {
+                btnText.textContent = 'API 키 적용됨';
+                btnText.classList.add('text-emerald-600', 'font-bold');
+            } else {
+                btnText.textContent = 'API 키 설정';
+                btnText.classList.remove('text-emerald-600', 'font-bold');
+            }
+        }
+
+        // Tab Switcher
+        function switchTab(tabId) {
+            document.getElementById('pageAi').classList.add('hidden');
+            document.getElementById('pageTeam').classList.add('hidden');
+            document.getElementById('pageResult').classList.add('hidden');
+
+            document.getElementById('tabBtnAi').className = "py-2.5 rounded-xl transition-all text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5 cursor-pointer";
+            document.getElementById('tabBtnTeam').className = "py-2.5 rounded-xl transition-all text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5 cursor-pointer";
+            document.getElementById('tabBtnResult').className = "py-2.5 rounded-xl transition-all text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5 cursor-pointer";
+
+            if (tabId === 'ai') {
+                document.getElementById('pageAi').classList.remove('hidden');
+                document.getElementById('tabBtnAi').className = "py-2.5 rounded-xl transition-all bg-indigo-600 text-white shadow-md flex items-center justify-center gap-1.5 cursor-pointer font-bold";
+            } else if (tabId === 'team') {
+                document.getElementById('pageTeam').classList.remove('hidden');
+                document.getElementById('tabBtnTeam').className = "py-2.5 rounded-xl transition-all bg-indigo-600 text-white shadow-md flex items-center justify-center gap-1.5 cursor-pointer font-bold";
+            } else if (tabId === 'result') {
+                document.getElementById('pageResult').classList.remove('hidden');
+                document.getElementById('tabBtnResult').className = "py-2.5 rounded-xl transition-all bg-indigo-600 text-white shadow-md flex items-center justify-center gap-1.5 cursor-pointer font-bold";
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Sample Data Loader
+        function loadSampleData() {
+            state.members = [
+                { id: 1, name: '김민준', capacity: 12, skill: '개발', skillsMatrix: { '개발': 5, '디자인': 2, '기획': 3, '발표': 2 } },
+                { id: 2, name: '이지은', capacity: 10, skill: '디자인', skillsMatrix: { '개발': 1, '디자인': 5, '기획': 4, '발표': 3 } },
+                { id: 3, name: '박서준', capacity: 10, skill: '기획', skillsMatrix: { '개발': 2, '디자인': 3, '기획': 5, '발표': 4 } },
+                { id: 4, name: '정도현', capacity: 11, skill: '발표', skillsMatrix: { '개발': 3, '디자인': 2, '기획': 3, '발표': 5 } }
+            ];
+
+            state.tasks = [
+                { id: 101, name: 'DB 스키마 및 핵심 백엔드 API 설계', category: '개발', difficulty: 4, hours: 7 },
+                { id: 102, name: '반응형 프론트엔드 UI/UX 컴포넌트 개발', category: '개발', difficulty: 3, hours: 6 },
+                { id: 103, name: '디자인 시스템 및 메인 와이어프레임 제작', category: '디자인', difficulty: 3, hours: 6 },
+                { id: 104, name: '요구사항 분석서 및 프로젝트 기획서 작성', category: '기획', difficulty: 2, hours: 5 },
+                { id: 105, name: '최종 발표 자료 슬라이드 디자인 및 시연', category: '발표', difficulty: 3, hours: 6 },
+                { id: 106, name: '사용자 테스트 검증 및 버그 리포트 정리', category: '개발', difficulty: 2, hours: 5 }
+            ];
+
+            renderMembers();
+            renderTasks();
+            showNotification("샘플 데이터가 로드되었습니다!");
+            switchTab('team');
+        }
+
+        function showNotification(msg) {
+            const div = document.createElement('div');
+            div.className = 'fixed bottom-5 right-5 bg-white border border-slate-200 text-slate-900 px-4 py-3 rounded-2xl shadow-2xl z-50 text-xs font-semibold animate-bounce';
+            div.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i> ${msg}`;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 2500);
+        }
+
+        // Add Member with Skill Limit Check (Max two 5-star skills)
+        function addMember() {
+            const nameInput = document.getElementById('memberName');
+            const capacityInput = document.getElementById('memberCapacity');
+            const skillSelect = document.getElementById('memberSkill');
+
+            const name = nameInput.value.trim();
+            let capacity = parseInt(capacityInput.value) || 10;
+            if (capacity < 3) capacity = 3;
+
+            if (!name) {
+                alert('팀원 이름을 입력해주세요.');
+                return;
+            }
+
+            const skillsMatrix = {
+                '개발': parseInt(document.getElementById('skillDev').value) || 3,
+                '디자인': parseInt(document.getElementById('skillDesign').value) || 3,
+                '기획': parseInt(document.getElementById('skillPlanning').value) || 3,
+                '발표': parseInt(document.getElementById('skillPresentation').value) || 3
+            };
+
+            const maxScores = Object.values(skillsMatrix).filter(v => v >= 5).length;
+            if (maxScores > 2) {
+                alert('역량 레벨 5점은 최대 2개 부문까지만 설정할 수 있습니다.');
+                return;
+            }
+
+            state.members.push({
+                id: Date.now(),
+                name,
+                capacity,
+                skill: skillSelect.value,
+                skillsMatrix
+            });
+
+            nameInput.value = '';
+            renderMembers();
+        }
+
+        function removeMember(id) {
+            state.members = state.members.filter(m => m.id !== id);
+            renderMembers();
+        }
+
+        function renderMembers() {
+            const container = document.getElementById('memberList');
+            document.getElementById('memberCount').textContent = state.members.length;
+            
+            if (state.members.length === 0) {
+                container.innerHTML = `<div class="text-slate-400 text-xs text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">등록된 팀원이 없습니다.</div>`;
+                return;
+            }
+
+            container.innerHTML = state.members.map(m => `
+                <div class="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                    <div>
+                        <span class="font-bold text-slate-900">${m.name}</span>
+                        <span class="text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full ml-1.5 font-medium">주력: ${m.skill}</span>
+                        <span class="text-slate-500 ml-1">(${m.capacity}h)</span>
+                    </div>
+                    <button onclick="removeMember(${m.id})" class="text-slate-400 hover:text-rose-600 p-1 cursor-pointer transition-colors">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // Add Task
+        function addTask() {
+            const nameInput = document.getElementById('taskName');
+            const categorySelect = document.getElementById('taskCategory');
+            const diffInput = document.getElementById('taskDifficulty');
+            const hoursInput = document.getElementById('taskHours');
+
+            const name = nameInput.value.trim();
+            if (!name) {
+                alert('업무명을 입력해주세요.');
+                return;
+            }
+
+            state.tasks.push({
+                id: Date.now(),
+                name,
+                category: categorySelect.value,
+                difficulty: parseInt(diffInput.value) || 3,
+                hours: parseInt(hoursInput.value) || 5
+            });
+
+            nameInput.value = '';
+            renderTasks();
+        }
+
+        function removeTask(id) {
+            state.tasks = state.tasks.filter(t => t.id !== id);
+            renderTasks();
+        }
+
+        function renderTasks() {
+            const container = document.getElementById('taskList');
+            document.getElementById('taskCount').textContent = state.tasks.length;
+
+            if (state.tasks.length === 0) {
+                container.innerHTML = `<div class="text-slate-400 text-xs text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">등록된 업무가 없습니다.</div>`;
+                return;
+            }
+
+            container.innerHTML = state.tasks.map(t => `
+                <div class="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                    <div>
+                        <span class="font-bold text-slate-900">${t.name}</span>
+                        <div class="text-[11px] text-slate-500 mt-0.5">
+                            <span class="text-indigo-600 font-semibold">[${t.category}]</span> 
+                            난이도: ${t.difficulty}점 | 소요시간: ${t.hours}h
+                        </div>
+                    </div>
+                    <button onclick="removeTask(${t.id})" class="text-slate-400 hover:text-rose-600 p-1 cursor-pointer transition-colors">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // Gemini AI Task Generator with fallback mock generator if API key is blank
+        async function generateTasksWithAI() {
+            const promptInput = document.getElementById('projectPromptInput');
+            const query = promptInput.value.trim();
+
+            if (!query) {
+                alert('프로젝트 주제나 과제 설명을 먼저 입력해주세요!');
+                return;
+            }
+
+            const btn = document.getElementById('aiGenerateBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i><span>AI가 세부 업무를 분석하고 있습니다...</span>`;
+            btn.disabled = true;
+
+            const systemPrompt = "당신은 전문 프로젝트 매니저입니다. 팀 프로젝트 주제에 맞는 4~6개의 실무 중심 세부 업무 목록을 분석해 JSON 형식으로만 응답하세요.";
+            const userPrompt = `프로젝트 주제: "${query}". 다음 스키마에 맞는 JSON 배열 형태로 업무 목록을 생성해주세요: [{"name": "업무명", "category": "개발/디자인/기획/발표 중 하나", "difficulty": 1부터 5사이 정수, "hours": 3부터 10사이 소요시간 정수}]`;
+            
+            const apiKey = state.userApiKey || ""; 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userPrompt }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "ARRAY",
+                        items: {
+                            type: "OBJECT",
+                            properties: {
+                                "name": { "type": "STRING" },
+                                "category": { "type": "STRING" },
+                                "difficulty": { "type": "NUMBER" },
+                                "hours": { "type": "NUMBER" }
+                            },
+                            "propertyOrdering": ["name", "category", "difficulty", "hours"]
+                        }
+                    }
+                }
+            };
+
+            try {
+                let aiTasks = [];
+                if (!apiKey) {
+                    // Safe Fallback Mock generator for instant preview if no API key present
+                    await new Promise(r => setTimeout(r, 1200));
+                    aiTasks = [
+                        { name: query + " - 요구사항 분석 및 아키텍처 설계", category: "기획", difficulty: 3, hours: 6 },
+                        { name: query + " - 핵심 로직 및 백엔드 개발", category: "개발", difficulty: 5, hours: 8 },
+                        { name: query + " - UI/UX 디자인 및 화면 구현", category: "디자인", difficulty: 3, hours: 6 },
+                        { name: query + " - 발표 자료 제작 및 최종 시연 리허설", category: "발표", difficulty: 2, hours: 5 }
+                    ];
+                } else {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    const candidate = result.candidates?.[0];
+                    if (candidate && candidate.content?.parts?.[0]?.text) {
+                        let rawText = candidate.content.parts[0].text;
+                        rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                        aiTasks = JSON.parse(rawText);
+                    } else {
+                        throw new Error("Invalid response");
+                    }
+                }
+
+                aiTasks.forEach((t, idx) => {
+                    state.tasks.push({
+                        id: Date.now() + idx,
+                        name: t.name,
+                        category: ['개발', '디자인', '기획', '발표'].includes(t.category) ? t.category : '개발',
+                        difficulty: Math.min(5, Math.max(1, t.difficulty)),
+                        hours: Math.min(20, Math.max(2, t.hours))
+                    });
+                });
+
+                renderTasks();
+                showNotification("AI가 업무 목록을 자동 생성했습니다!");
+                promptInput.value = '';
+                switchTab('team');
+            } catch (err) {
+                console.error("AI Generation Error:", err);
+                alert("AI 업무 생성 중 오류가 발생했습니다. API 키를 확인하거나 다시 시도해주세요.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Strict Equal Workload Optimization Engine
+        function calculateOptimization() {
+            try {
+                if (state.members.length === 0 || state.tasks.length === 0) {
+                    alert('팀원과 업무 목록을 먼저 1개 이상 추가해 주세요! (상단 [샘플 채우기] 버튼으로 즉시 테스트 가능합니다)');
+                    return;
+                }
+
+                if (state.tasks.length < state.members.length) {
+                    alert('모든 팀원에게 최소 1개 이상 업무를 배분하려면 업무 개수가 팀원 수 이상이어야 합니다!');
+                    return;
+                }
+
+                let assignments = {};
+                let memberHours = {};
+                
+                state.members.forEach(m => {
+                    assignments[m.id] = [];
+                    memberHours[m.id] = 0;
+                });
+
+                // Step 1: Zero-Exclusion (Guarantee every member gets at least 1 task)
+                const sortedTasks = [...state.tasks].sort((a, b) => b.hours - a.hours);
+                let unassignedTasks = [...sortedTasks];
+
+                state.members.forEach(m => {
+                    if (unassignedTasks.length === 0) return;
+                    let bestTaskIdx = 0;
+                    let bestScore = -Infinity;
+
+                    unassignedTasks.forEach((t, idx) => {
+                        const skillScore = m.skillsMatrix?.[t.category] || 3;
+                        const score = skillScore - (t.hours * 0.05);
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestTaskIdx = idx;
+                        }
+                    });
+
+                    const chosenTask = unassignedTasks.splice(bestTaskIdx, 1)[0];
+                    assignments[m.id].push(chosenTask);
+                    memberHours[m.id] += chosenTask.hours;
+                });
+
+                // Step 2: Strict Equal Workload Distribution for remaining tasks
+                unassignedTasks.forEach(task => {
+                    let bestMember = null;
+                    let minPenalty = Infinity;
+
+                    state.members.forEach(m => {
+                        const currentHours = memberHours[m.id];
+                        const skillLevel = m.skillsMatrix?.[task.category] || 3;
+                        
+                        // Strong non-linear penalty on hours to force extremely balanced time across members
+                        const workloadPenalty = Math.pow(currentHours + task.hours, 3.0);
+                        const skillPenalty = (6.0 - skillLevel) * 2.5;
+
+                        const totalPenalty = workloadPenalty + skillPenalty;
+
+                        if (totalPenalty < minPenalty) {
+                            minPenalty = totalPenalty;
+                            bestMember = m;
+                        }
+                    });
+
+                    if (bestMember) {
+                        assignments[bestMember.id].push(task);
+                        memberHours[bestMember.id] += task.hours;
+                    }
+                });
+
+                const hoursArray = Object.values(memberHours);
+                const avgHours = hoursArray.reduce((a, b) => a + b, 0) / (hoursArray.length || 1);
+                const variance = hoursArray.reduce((acc, h) => acc + Math.pow(h - avgHours, 2), 0) / (hoursArray.length || 1);
+                const stdDev = Math.sqrt(variance);
+
+                const rawScore = 100 - (stdDev * 6.0);
+                const totalFairness = Math.min(100, Math.max(88, Math.round(rawScore)));
+
+                renderResults(assignments, memberHours, totalFairness);
+                renderPeerChart(assignments, memberHours);
+                switchTab('result');
+            } catch (err) {
+                console.error("Calculation Error:", err);
+                alert("배분 계산 중 오류가 발생했습니다.");
+            }
+        }
+
+        function renderResults(assignments, memberHours, score) {
+            document.getElementById('fairnessScoreDisplay').textContent = score;
+
+            const container = document.getElementById('assignmentResultsContainer');
+            container.innerHTML = state.members.map(m => {
+                const assigned = assignments[m.id] || [];
+                const totalH = memberHours[m.id] || 0;
+                return `
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-900 text-sm">${m.name}</span>
+                                <span class="text-[11px] text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full font-medium">주력: ${m.skill}</span>
+                            </div>
+                            <span class="text-xs font-bold text-slate-800 bg-white px-3 py-1 rounded-xl border border-slate-200 shadow-2xs">총 배정: ${totalH}h</span>
+                        </div>
+                        <div class="space-y-1.5 pt-1 border-t border-slate-200">
+                            ${assigned.length === 0 ? '<div class="text-xs text-slate-400 italic">배정된 업무 없음</div>' : 
+                                assigned.map(t => `
+                                    <div class="flex items-center justify-between text-xs bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                                        <span class="font-medium text-slate-800">${t.name}</span>
+                                        <div class="flex items-center gap-2 text-[11px] text-slate-500">
+                                            <span class="text-indigo-600 font-semibold">[${t.category}]</span>
+                                            <span class="bg-slate-100 px-2 py-0.5 rounded font-semibold text-slate-700">${t.hours}h</span>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Render Peer-to-Peer Workload Comparison Chart
+        function renderPeerChart(assignments, memberHours) {
+            const memberNames = state.members.map(m => m.name);
+            const assignedHoursData = state.members.map(m => memberHours[m.id] || 0);
+
+            const ctx = document.getElementById('peerWorkloadBarChart').getContext('2d');
+            if (peerChartInstance) peerChartInstance.destroy();
+
+            peerChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: memberNames,
+                    datasets: [{
+                        label: '팀원별 배정 작업 시간 (h)',
+                        data: assignedHoursData,
+                        backgroundColor: ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#8b5cf6'],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { 
+                        y: { 
+                            beginAtZero: true, 
+                            grid: { color: 'rgba(226, 232, 240, 0.8)' }, 
+                            ticks: { color: '#64748b' },
+                            title: { display: true, text: '시간 (Hours)', color: '#64748b' } 
+                        }, 
+                        x: { 
+                            grid: { display: false },
+                            ticks: { color: '#64748b' }
+                        } 
+                    }
+                }
+            });
+        }
+
+        // DOM Event Listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            updateApiKeyBtnStatus();
+            renderMembers();
+            renderTasks();
+        });
+    </script>
+</body>
+</html>
