@@ -1,3 +1,10 @@
+<img width="998" height="908" alt="캡처4" src="https://github.com/user-attachments/assets/4393c525-b64a-482b-8650-668c628aa7fb" />
+<img width="1036" height="899" alt="캡처2" src="https://github.com/user-attachments/assets/4b0c2eaf-55fc-44a8-9b05-11b672f87961" />
+<img width="1204" height="769" alt="캡처 1PNG" src="https://github.com/user-attachments/assets/eb6bf70d-7c53-4d56-a5a0-4d24c0fd83c3" />
+<img width="1032" height="848" alt="캡처3" src="https://github.com/user-attachments/assets/c3453c7b-5907-450a-8119-fabc1f662b71" />
+
+
+
 # TeamBalance
 
 TeamBalance is a web application built to help student and professional teams divide project work fairly and prevent free-riding. Using the Gemini API and a custom workload-balancing algorithm, it breaks down project topics into actionable sub-tasks and assigns them based on each member's skills and availability.
